@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "Recipe A is the permissions block. Recipe B is the hooks block. Copy ONE of",
+    "them into .claude/settings.json at the repository root, then replace every",
+    "MODULE-YOU-ARE-NOT-TOUCHING with a module your plan puts out of scope.",
+    "",
+    "The leading single slash anchors a path rule to the directory the session",
+    "was started in. Start the agent at the repository root (SETUP.md step 6)",
+    "and that is the repository root. No leading slash means relative to the",
+    "working directory, and a double slash means the filesystem root.",
+    "",
+    "Write the rules on Edit, not on Write. Path rules are only consulted for Edit",
+    "and Read. An Edit rule already covers Write and NotebookEdit.",
+    "",
+    "Settings and hooks reload when you save the file, so there is nothing to",
+    "restart. Check that yours was picked up: run /status and read the Setting",
+    "sources line. A file with broken JSON (often a stray trailing comma from",
+    "hand copying this block) is skipped, silently mid-session, and the next",
+    "session start shows a Settings Error. Absent from that line means the",
+    "boundary is not in effect.",
+    "",
+    "The hook runs through a shell wrapper on purpose. Only exit code 2 blocks a",
+    "tool call. Exit 1 is treated as a broken hook and the edit proceeds. A typo",
+    "in protect.py is a syntax error, which exits 1 before any of its own code",
+    "can run. The wrapper turns every non-zero exit into a 2."
+  ],
+
+  "permissions": {
+    "deny": [
+      "Edit(/billing/**)",
+      "Edit(/cli/**)",
+      "Edit(/accounts/**)",
+      "Edit(/analytics/campusreserve_analytics/revenue.py)",
+      "Edit(/AGENTS.md)",
+      "Edit(/CLAUDE.md)",
+      "Edit(/CHANGE-REQUEST.md)",
+      "Edit(/.claude/**)",
+      "Edit(/guardrails/**)",
+      "Bash(git push:*)",
+      "Bash(rm *)",
+      "Bash(sudo *)"
+    ]
+  }
+}

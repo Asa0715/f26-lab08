@@ -140,14 +140,42 @@ The `grep` checks in the Task 1 and Task 4 checkpoints catch both; neither gate 
 
 ## Milestone 2: The guardrail
 
-Pick one recipe from `guardrails/README.md`. Configure it, then prove it binds.
 
 **The recipe.** Which one you picked, the exact paths or trees it covers, and
 one line on what it cannot catch.
 
-**The captured block.** Paste the excerpt of the agent's own turn showing what
-you asked it to do, its tool call, and the block the guardrail returned. A bare
-terminal paste with no agent turn around it does not show the boundary binding.
+Recipe A, the permission boundary, in `.claude/settings.json`. 
+
+It denies `Edit` on `/billing/**`, `/cli/**`, `/accounts/**`, and
+`/analytics/campusreserve_analytics/revenue.py` from the out-of-scope list,
+plus the shipped `/AGENTS.md`, `/CLAUDE.md`, `/CHANGE-REQUEST.md`,
+`/.claude/**`, `/guardrails/**`, and `Bash(git push:*)`, `Bash(rm *)`,
+`Bash(sudo *)`.
+
+It only covers Claude Code's file tools, so an in-bounds edit that changes out-of-scope behavior gets through, and so does a Bash `cp`, `sed -i`, or script that writes a denied file.
+
+**The captured block.** 
+
+Manual mode, `claude` started at the repository root:
+
+```
+> Using your Edit tool, add a comment line at the top of the file
+  billing/src/main/java/edu/cmu/cs214/campusreserve/billing/Money.java.
+
+  Read 1 file
+
+● Update(billing/src/main/java/edu/cmu/cs214/campusreserve/billing/Money.java)
+  └ Error editing file
+
+● I can't edit that file — the directory is blocked by your permission
+  settings. You'll need to adjust the permission configuration (or use a
+  different tool/mode) if you want this change made.
+```
+
+Afterwards `git status --short billing` printed nothing: `Money.java` is
+unchanged.
+
+![Guardrail block](docs/guardrail-block.png)
 
 ---
 
