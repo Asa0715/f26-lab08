@@ -200,11 +200,56 @@ line of one `mvn -B clean test` run after the task was finished. The module
 gate cannot see a cross-module compile break on a warm tree. A cold build can,
 and so can CI.
 
+Task 1, "Modify a booking in place".
+
+Gate, `mvn -pl core-domain -am test`:
+
+```
+[INFO] Tests run: 187, Failures: 0, Errors: 0, Skipped: 0
+```
+
+Closing `mvn -B clean test`: every module in the Reactor Summary is SUCCESS,
+ending
+
+```
+[INFO] BUILD SUCCESS
+```
+
 **The diff.** The files the agent changed, and how each one maps to that task's
 declared scope (plain `git diff` leaves out new files, but
 `git add -N . && git diff --stat` includes them). Note anything it touched that
 you did not expect, including any shipped test. Then quote the one line you
 read hardest and say what you were checking for.
+
+`git add -N . && git diff --stat`: 6 files, 461 insertions, 2 deletions, all in
+`core-domain`, the task's declared scope.
+
+- `service/BookingService.java`: `modifyBooking` and a private `excluding`
+  helper. The task's core.
+- `domain/Booking.java`: a `history` component, a `modified(...)` copy method,
+  and a kept 7-argument constructor so existing callers still compile. The
+  stored half of clause 5.
+- `domain/BookingChange.java` (new): one history entry, old and new values plus
+  when.
+- `domain/ModificationResult.java` (new): the result type, modified or rejected.
+- `policy/BookingRules.java`: `checkModifiable`, which reuses
+  `checkCancellable` for clause 1. Not named in the plan, but inside
+  `core-domain` and the cancellation rule it mirrors.
+- `service/BookingServiceModifyTest.java` (new): 20 tests. No shipped test
+  changed.
+
+Unexpected: `Booking` changed shape. A new record component is visible to every
+module that builds a `Booking`, which is why the closing clean build mattered.
+
+The line I read hardest:
+
+```java
+List<Booking> otherRoomBookings = excluding(bookings.findActiveByRoom(booking.roomId()), bookingId);
+```
+
+I was checking that "the booking does not collide with itself" is done by
+dropping it by id and then asking `ConflictChecker`, not by comparing starts and
+ends (rule 3). It is, and the rule 3 grep over the diff prints nothing.
 
 **The refuter.** What you gave it and what you asked it to do (paste the
 brief). Then the one finding you settled, and how (the new failing test with
