@@ -1,10 +1,5 @@
 # PLAN.md
 
-One section per milestone. Fill them in order, with the plan before you run
-anything, the guardrail before you run a task, and the run after.
-
-Keep it short and specific. Point at modules, gates, and file paths.
-
 ---
 
 ## Milestone 1: The plan
@@ -115,11 +110,11 @@ Keep it short and specific. Point at modules, gates, and file paths.
   booking. Every owner test passes and no shipped test sends a `PATCH`, so the
   gate stays green.
 
-**AGENTS.md rules 3 and 4.** 
+**AGENTS.md rules 3 and 4.**
 
 The `grep` checks in the Task 1 and Task 4 checkpoints catch both; neither gate does, because a second overlap check or a waitlist write outside `BookingService` passes every test.
 
-**Out of scope, with reasons.** 
+**Out of scope, with reasons.**
 
 - **`billing`.** CR out of scope: "The price does not change", and billing is
   not part of this request. No re-pricing, re-issuing, or voiding. Rule 1 backs
@@ -140,11 +135,9 @@ The `grep` checks in the Task 1 and Task 4 checkpoints catch both; neither gate 
 
 ## Milestone 2: The guardrail
 
+**The recipe.**
 
-**The recipe.** Which one you picked, the exact paths or trees it covers, and
-one line on what it cannot catch.
-
-Recipe A, the permission boundary, in `.claude/settings.json`. 
+Recipe A, the permission boundary, in `.claude/settings.json`.
 
 It denies `Edit` on `/billing/**`, `/cli/**`, `/accounts/**`, and
 `/analytics/campusreserve_analytics/revenue.py` from the out-of-scope list,
@@ -154,7 +147,7 @@ plus the shipped `/AGENTS.md`, `/CLAUDE.md`, `/CHANGE-REQUEST.md`,
 
 It only covers Claude Code's file tools, so an in-bounds edit that changes out-of-scope behavior gets through, and so does a Bash `cp`, `sed -i`, or script that writes a denied file.
 
-**The captured block.** 
+**The captured block.**
 
 Manual mode, `claude` started at the repository root:
 
@@ -181,24 +174,13 @@ unchanged.
 
 ## Milestone 3: The run
 
-Run exactly ONE task from your plan with the agent, under the guardrail, through
-its gate. Any task whose dependencies are done qualifies, including the
-smallest one.
-
-**The takeover point.** Write this before you start the run. A concrete,
-conditional statement of when you would stop the agent and write the code
-yourself. "If something looks wrong" does not count. Name the trigger and name
-what you would do.
+**The takeover point.**
 
 Task 1. If the agent edits a shipped test, tries a Bash `cp`/`sed` onto a path
 the guardrail denied, or the core-domain gate is red twice in a row on the same
 failure, I stop it and write the remaining part of `modifyBooking` myself.
 
-**The evidence.** Name the task from Milestone 1. Paste the result line of its
-gate command (run it without `-q` so the line is in the output) and the result
-line of one `mvn -B clean test` run after the task was finished. The module
-gate cannot see a cross-module compile break on a warm tree. A cold build can,
-and so can CI.
+**The evidence.**
 
 Task 1, "Modify a booking in place".
 
@@ -215,11 +197,7 @@ ending
 [INFO] BUILD SUCCESS
 ```
 
-**The diff.** The files the agent changed, and how each one maps to that task's
-declared scope (plain `git diff` leaves out new files, but
-`git add -N . && git diff --stat` includes them). Note anything it touched that
-you did not expect, including any shipped test. Then quote the one line you
-read hardest and say what you were checking for.
+**The diff.**
 
 `git add -N . && git diff --stat`: 6 files, 461 insertions, 2 deletions, all in
 `core-domain`, the task's declared scope.
@@ -251,7 +229,58 @@ I was checking that "the booking does not collide with itself" is done by
 dropping it by id and then asking `ConflictChecker`, not by comparing starts and
 ends (rule 3). It is, and the rule 3 grep over the diff prints nothing.
 
-**The refuter.** What you gave it and what you asked it to do (paste the
-brief). Then the one finding you settled, and how (the new failing test with
-its red run, or the evidence that dismissed it). If nothing it reported held
-up, say how you checked its strongest claim.
+**The refuter.**
+
+A fresh `claude` session at the repository root, given only the prompt below.
+One leak: PLAN.md had uncommitted edits (the Diff section), so
+`git add -N . && git diff` showed them; the refuter says nothing it reported
+relies on them.
+
+```
+You are a refuter. Find inputs or call sequences where this change does the wrong thing. Do not fix anything.
+
+## What you may read
+
+- `CHANGE-REQUEST.md`, the requirements.
+- The change: run `git add -N . && git diff`.
+- The task's scope: Task 1: `BookingService.modifyBooking` in `core-domain` covers CR clauses 1-4 and records history on the booking; it publishes no new event yet.
+- Existing files under `core-domain/` that the diff calls, such as `ConflictChecker` and `BookingRules`.
+
+Do NOT read `PLAN.md`, `docs/`, or the git log.
+
+## What you must not change
+
+- Do not edit, rename, or delete any existing file.
+- Do not run git commands that change state (`commit`, `stash`, `checkout`, `reset`, `restore`).
+- You may only create new probe tests under `core-domain/src/test/java/`, named `RefuterProbe*`, and run them with `mvn -pl core-domain -am test`. List every file you create.
+
+## What to look for
+
+Cases where `modifyBooking` breaks a clause of `CHANGE-REQUEST.md`. Start with a booker who already holds the per-user maximum of bookings, then rejections that still change something, waitlist promotion, and history. Missing events, notifications, HTTP, or analytics are later tasks, not findings.
+
+## Report
+
+Strongest first. For each: the clause it breaks, the inputs, expected vs actual, and whether a probe test confirmed it (paste its result line). If nothing holds up, name the claim you came closest to proving and why it failed.
+```
+
+**The finding I settled.** Lengthening a booking can promote a waiter whose
+slot it did not free (clause 4: lengthening "frees nothing… promoting nobody is
+the right outcome"). A waiter skipped at cancellation time (at the cap, or
+clashing with their own calendar) stays on the list after the slot is free;
+`modifyBooking` then runs `promoteWaitlist` over the whole room on an unrelated
+lengthening and promotes them. Settled as confirmed, with a new failing test,
+`RefuterProbeModifyTest`:
+
+```
+[ERROR] RefuterProbeModifyTest.lengtheningPromotesAWaiterWhoseSlotItDidNotFree:49 lengthening freed nothing, so nobody should be promoted ==> expected: <[]> but was: <[Promotion[... userId=u-2, interval=[2026-10-20T10:00:00Z, 2026-10-20T11:00:00Z) ...]]>
+[ERROR] RefuterProbeModifyTest.lengtheningPromotesAWaiterSkippedForTheirOwnCalendar:66 lengthening freed nothing, so nobody should be promoted ==> expected: <[]> but was: <[Promotion[... userId=u-2 ...]]>
+[ERROR] Tests run: 4, Failures: 2, Errors: 0, Skipped: 0
+```
+
+It is a requirements question as much as a bug: clause 4 also calls the pass
+"the same" one a cancellation runs, and a cancellation in that room would
+promote the same waiter. Not fixed, not committed.
+
+The probe file was deleted afterwards. `mvn -pl core-domain -am test` is back to
+`Tests run: 187, Failures: 0, Errors: 0, Skipped: 0`.
+
