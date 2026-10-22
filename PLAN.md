@@ -190,6 +190,10 @@ conditional statement of when you would stop the agent and write the code
 yourself. "If something looks wrong" does not count. Name the trigger and name
 what you would do.
 
+Task 1. If the agent edits a shipped test, tries a Bash `cp`/`sed` onto a path
+the guardrail denied, or the core-domain gate is red twice in a row on the same
+failure, I stop it and write the remaining part of `modifyBooking` myself.
+
 **The evidence.** Name the task from Milestone 1. Paste the result line of its
 gate command (run it without `-q` so the line is in the output) and the result
 line of one `mvn -B clean test` run after the task was finished. The module
